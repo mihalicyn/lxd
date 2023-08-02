@@ -667,6 +667,39 @@ func (d Nftables) InstanceClearRPFilter(projectName string, instanceName string,
 	return nil
 }
 
+// InstanceSetupNetPrio activates setting of skb->priority for the specified instance device on the host interface.
+func (d Nftables) InstanceSetupNetPrio(projectName string, instanceName string, deviceName string, netPrio int) error {
+	instanceLabel := project.Instance(projectName, instanceName)
+	tplFields := map[string]any{
+		"namespace":      nftablesNamespace,
+		"family":         "inet",
+		"chainSeparator": nftablesChainSeparator,
+		"instanceLabel":  instanceLabel,
+		"deviceName":     deviceName,
+		"netPrio":        netPrio,
+	}
+
+	err := d.applyNftConfig(nftablesInstanceNetPrio, tplFields)
+	if err != nil {
+		return fmt.Errorf("Failed adding netprio rules for instance %q: %w", instanceLabel, err)
+	}
+
+	return nil
+}
+
+// InstanceClearNetPrio removes setting of skb->priority for the specified instance device on the host interface.
+func (d Nftables) InstanceClearNetPrio(projectName string, instanceName string, deviceName string) error {
+	instanceLabel := project.Instance(projectName, instanceName)
+	chainLabel := fmt.Sprintf("netprio%s%s", nftablesChainSeparator, instanceLabel)
+
+	err := d.removeChains([]string{"inet", "ip", "ip6"}, chainLabel, "fwd")
+	if err != nil {
+		return fmt.Errorf("Failed clearing netprio rules for instance device %q: %w", instanceLabel, err)
+	}
+
+	return nil
+}
+
 // NetworkApplyACLRules applies ACL rules to the existing firewall chains.
 func (d Nftables) NetworkApplyACLRules(networkName string, rules []ACLRule) error {
 	nftRules := make([]string, 0)
