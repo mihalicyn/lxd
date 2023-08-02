@@ -2945,6 +2945,10 @@ func (d *lxc) onStop(args map[string]string) error {
 
 		d.logger.Debug("Instance stopped, cleaning up")
 
+		if !d.state.OS.CGInfo.Supports(cgroup.NetPrio, nil) {
+			_ = setNetworkPriorityWithNetfilter(d, 0)
+		}
+
 		// Wait for any file operations to complete.
 		// This is to required so we can actually unmount the container.
 		d.stopForkfile(false)
@@ -7927,8 +7931,52 @@ func (d *lxc) removeDiskDevices() error {
 	return nil
 }
 
-// Network I/O limits.
-func (d *lxc) setNetworkPriority() error {
+// Adds a netfilter rule that sets skb->priority on all skb's which exit the container.
+func setNetworkPriorityWithNetfilter(d *lxc, networkPriority int) error {
+	// in setNetworkPriorityWithCgroup we set skb->priority on all
+	// skb's that comes from the container cgroup on the enter to
+	// the host interfaces
+	// here we go another way, we set skb->priority on all skb's
+	// which exit the container network namespace once skb exits
+	// from the host peer of the container network device.
+
+	// Check that we at least succeeded to set an entry
+	success := false
+	var err error
+	for devName, devConfig := range d.ExpandedDevices() {
+		if devConfig["type"] != "nic" {
+			continue
+		}
+
+		hostDevName := d.ExpandedConfig()[fmt.Sprintf("volatile.%s.host_name", devName)]
+
+		err = d.state.Firewall.InstanceClearNetPrio(d.Project().Name, d.Name(), hostDevName)
+		if err != nil {
+			d.logger.Debug("Failed to clear instance network priority", logger.Ctx{"name": d.Name(), "project": d.Project().Name, "error": err})
+
+			continue
+		}
+
+		if networkPriority != 0 {
+			err = d.state.Firewall.InstanceSetupNetPrio(d.Project().Name, d.Name(), hostDevName, networkPriority)
+			if err != nil {
+				d.logger.Debug("Failed to setup instance network priority", logger.Ctx{"name": d.Name(), "project": d.Project().Name, "error": err})
+
+				continue
+			}
+		}
+
+		success = true
+	}
+
+	if !success && len(d.ExpandedDevices()) > 0 {
+		return fmt.Errorf("Failed to set network device priority: %w", err)
+	}
+
+	return nil
+}
+
+func setNetworkPriorityWithCgroup(d *lxc, networkPriority int) error {
 	// Load the go-lxc struct.
 	cc, err := d.initLXC(false)
 	if err != nil {
@@ -7941,14 +7989,41 @@ func (d *lxc) setNetworkPriority() error {
 		return err
 	}
 
-	// Check that the container is running
-	if d.InitPID() <= 0 {
-		return fmt.Errorf("Can't set network priority on stopped container")
-	}
-
 	// Don't bother if the cgroup controller doesn't exist
 	if !d.state.OS.CGInfo.Supports(cgroup.NetPrio, cg) {
 		return nil
+	}
+
+	// Get all the interfaces
+	netifs, err := net.Interfaces()
+	if err != nil {
+		return err
+	}
+
+	// Check that we at least succeeded to set an entry
+	success := false
+	var lastError error
+	for _, netif := range netifs {
+		err = cg.SetNetIfPrio(fmt.Sprintf("%s %d", netif.Name, networkPriority))
+		if err == nil {
+			success = true
+		} else {
+			lastError = err
+		}
+	}
+
+	if !success {
+		return fmt.Errorf("Failed to set network device priority: %s", lastError)
+	}
+
+	return nil
+}
+
+// Network I/O limits.
+func (d *lxc) setNetworkPriority() error {
+	// Check that the container is running
+	if d.InitPID() <= 0 {
+		return fmt.Errorf("Can't set network priority on stopped container")
 	}
 
 	// Extract the current priority
@@ -7962,29 +8037,11 @@ func (d *lxc) setNetworkPriority() error {
 		return err
 	}
 
-	// Get all the interfaces
-	netifs, err := net.Interfaces()
-	if err != nil {
-		return err
+	if d.state.OS.CGInfo.Supports(cgroup.NetPrio, nil) {
+		return setNetworkPriorityWithCgroup(d, networkInt)
+	} else {
+		return setNetworkPriorityWithNetfilter(d, networkInt)
 	}
-
-	// Check that we at least succeeded to set an entry
-	success := false
-	var lastError error
-	for _, netif := range netifs {
-		err = cg.SetNetIfPrio(fmt.Sprintf("%s %d", netif.Name, networkInt))
-		if err == nil {
-			success = true
-		} else {
-			lastError = err
-		}
-	}
-
-	if !success {
-		return fmt.Errorf("Failed to set network device priority: %s", lastError)
-	}
-
-	return nil
 }
 
 // IsFrozen returns if instance is frozen.

@@ -625,6 +625,9 @@ func deviceTaskBalance(s *state.State) {
 
 func deviceNetworkPriority(s *state.State, netif string) {
 	// Don't bother running when CGroup support isn't there
+	// For cgroup v2: cgroup.NetPrio is not supported and
+	// we want to use another way to set skb->priority in this case
+	// so it's safe to skip this entire function.
 	if !s.OS.CGInfo.Supports(cgroup.NetPrio, nil) {
 		return
 	}
