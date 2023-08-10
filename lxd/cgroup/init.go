@@ -310,13 +310,6 @@ func (info *Info) Warnings() []cluster.Warning {
 		})
 	}
 
-	if !info.Supports(NetPrio, nil) {
-		warnings = append(warnings, cluster.Warning{
-			TypeCode:    warningtype.MissingCGroupNetworkPriorityController,
-			LastMessage: "network priority will be ignored",
-		})
-	}
-
 	if !info.Supports(Pids, nil) {
 		warnings = append(warnings, cluster.Warning{
 			TypeCode:    warningtype.MissingCGroupPidsController,
