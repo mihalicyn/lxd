@@ -25,15 +25,12 @@ import (
 // Hooks satisfies the sqlhook.Hooks interface
 type Hooks struct {
 	name    string
-	time    time.Duration
-	counter int
+	metrics *metrics.SQLMetrics
 }
 
 // Before hook will print the query with it's args and return the context with the timestamp
 func (h *Hooks) Before(ctx context.Context, query string, args ...interface{}) (context.Context, error) {
-	metrics.AddSQLMetric(h.name, h.time, h.counter)
-	//fmt.Printf("(%s;%d;%s)> %s %q", h.name, h.counter, h.time, query, args)
-	h.counter++
+	//fmt.Printf("(%s;%d;%s)> %s %q", h.name, h.counter, h.time, query, args
 	return context.WithValue(ctx, "query_begin", time.Now()), nil
 }
 
@@ -41,7 +38,7 @@ func (h *Hooks) Before(ctx context.Context, query string, args ...interface{}) (
 func (h *Hooks) After(ctx context.Context, query string, args ...interface{}) (context.Context, error) {
 	begin := ctx.Value("query_begin").(time.Time)
 	queryTime := time.Since(begin)
-	h.time += queryTime
+	h.metrics.Add(queryTime)
 	//fmt.Printf(". took: %s\n", queryTime)
 	return ctx, nil
 }
@@ -60,7 +57,7 @@ func Open(name string, store driver.NodeStore, options ...driver.Option) (*sql.D
 	}
 
 	driverNameForLXD := dqliteDriverName()
-	sql.Register(driverNameForLXD, sqlhooks.Wrap(driver, &Hooks{name: "LXD"}))
+	sql.Register(driverNameForLXD, sqlhooks.Wrap(driver, &Hooks{name: "LXD", metrics: metrics.GetOrInitSQLMetric("LXD")}))
 
 	// Create the cluster db. This won't immediately establish any network
 	// connection, that will happen only when a db transaction is started
