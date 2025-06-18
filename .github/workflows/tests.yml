@@ -316,8 +316,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        suite: ["cluster", "standalone", "snap"]
-        backend: ["dir", "btrfs", "lvm", "zfs", "ceph", "random"]
+        suite: ["migration", "storage_driver_zfs"]
+        backend: ["zfs"]
 
     steps:
       - name: Checkout
@@ -456,7 +456,8 @@ jobs:
           limit-access-to-actor: true
 
   snap-tests:
-    if: github.event_name != 'schedule' || github.repository == 'canonical/lxd'
+    # XXX: intentionally disabling to test just ZFS in block mode
+    if: github.event_name != 'schedule' && github.repository == 'canonical/lxd'
     needs: code-tests
     env:
       BRANCH_NAME: ${{ github.ref_name }}
