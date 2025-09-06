@@ -7,9 +7,9 @@ test_storage_driver_zfs() {
     return
   fi
 
-  do_storage_driver_zfs ext4
+  for _ in $(seq 6); do
   do_storage_driver_zfs xfs
-  do_storage_driver_zfs btrfs
+  done
 
   do_zfs_cross_pool_copy
   do_zfs_delegate
