@@ -2118,6 +2118,7 @@ func (d *zfs) ListVolumes() ([]Volume, error) {
 // activateVolume activates a ZFS volume if not already active. Returns whether it was activated along with the path to the zvol or an error.
 func (d *zfs) activateVolume(vol Volume) (bool, string, error) {
 	if !IsContentBlock(vol.contentType) && !vol.IsBlockBacked() {
+		d.logger.Warn("Attempted to activate non-block volume", logger.Ctx{"volName": vol.Name()})
 		return false, "", nil // Nothing to do for non-block or non-block backed volumes.
 	}
 
