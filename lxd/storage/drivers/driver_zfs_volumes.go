@@ -1938,6 +1938,7 @@ func (d *zfs) getVolumeDiskPathFromDataset(dataset string) (string, error) {
 			// If the udev link exists and is a block device, return it.
 			sb, err := os.Stat(devPath)
 			if err == nil && shared.IsBlockdev(sb.Mode()) {
+				d.logger.Warn("udev symlink used to locate zvol (fast path)", logger.Ctx{"dataset": dataset, "dev": devPath})
 				return devPath, nil
 			}
 		}
@@ -1978,6 +1979,7 @@ func (d *zfs) getVolumeDiskPathFromDataset(dataset string) (string, error) {
 		}
 
 		if strings.TrimSpace(output) == dataset && shared.IsBlockdevPath(entryPath) {
+			d.logger.Warn("zvol_id used to locate zvol (fallback method)", logger.Ctx{"dataset": dataset, "dev": entryPath})
 			return entryPath, nil
 		}
 	}
