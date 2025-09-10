@@ -1927,6 +1927,7 @@ func (d *zfs) getVolumeDiskPathFromDataset(dataset string) (string, error) {
 	// before returning it. Chasing the symlink to the actual device node
 	// (`/dev/zdX`) ensures consistency with the "slow path" where `zvol_id` is
 	// invoked directly.
+	var devPathFromUdev string
 	devPath, err := os.Readlink("/dev/zvol/" + dataset)
 	if err == nil {
 		// devPath is relative to /dev/zvol, so extract the last part
@@ -1939,7 +1940,7 @@ func (d *zfs) getVolumeDiskPathFromDataset(dataset string) (string, error) {
 			sb, err := os.Stat(devPath)
 			if err == nil && shared.IsBlockdev(sb.Mode()) {
 				d.logger.Warn("udev symlink used to locate zvol (fast path)", logger.Ctx{"dataset": dataset, "dev": devPath})
-				return devPath, nil
+				devPathFromUdev = devPath
 			}
 		}
 	}
@@ -1980,6 +1981,12 @@ func (d *zfs) getVolumeDiskPathFromDataset(dataset string) (string, error) {
 
 		if strings.TrimSpace(output) == dataset && shared.IsBlockdevPath(entryPath) {
 			d.logger.Warn("zvol_id used to locate zvol (fallback method)", logger.Ctx{"dataset": dataset, "dev": entryPath})
+
+			if devPathFromUdev != "" && devPathFromUdev != entryPath {
+				d.logger.Error("ZFS zvol udev symlink mismatch", logger.Ctx{"dataset": dataset, "udev": devPathFromUdev, "zvol_id": entryPath})
+				return "", fmt.Errorf("ZFS zvol udev symlink mismatch for %q", dataset)
+			}
+
 			return entryPath, nil
 		}
 	}
