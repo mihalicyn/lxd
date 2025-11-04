@@ -98,7 +98,7 @@ spawn_lxd() {
     echo "==> Spawning lxd in ${LXD_DIR}"
 
     if [ "${LXD_NETNS}" = "" ]; then
-        strace -tt -f -e unlinkat,unlink,symlink,symlinkat,mknod,mknodat -o "${LXD_DIR}/lxd-strace.log"  lxd --logfile "${LXD_DIR}/lxd.log" "${SERVER_DEBUG-}" "$@" 2>&1 &
+        lxd --logfile "${LXD_DIR}/lxd.log" "${SERVER_DEBUG-}" "$@" 2>&1 &
     else
         # shellcheck disable=SC2153
         read -r pid < "${TEST_DIR}/ns/${LXD_NETNS}/PID"
