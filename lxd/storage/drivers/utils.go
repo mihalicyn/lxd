@@ -613,6 +613,7 @@ func regenerateFilesystemXFSUUID(devPath string) error {
 		logger.Error("Failed running xfs_admin", logger.Ctx{"msg": msg, "devPath": devPath, "err": err, "sb": sb, "err2": err2})
 
 		debug.PrintStack()
+		panic("Panicking before instance is cleaned up")
 		return err
 	}
 
