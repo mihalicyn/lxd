@@ -205,6 +205,10 @@ cleanup() {
       echo "::endgroup::"
     fi
 
+    echo "::group::udev debug"
+    journalctl -n 1000 --no-pager -u systemd-udevd.service || true
+    echo "::endgroup::"
+
     # dmesg may contain oops, IO errors, crashes, etc
     # If there's a kernel stack trace, don't generate a collapsible group
 
@@ -420,6 +424,10 @@ fi
 if [ -n "${SHELL_TRACING:-}" ]; then
   set -x
 fi
+
+# XXX: udev debug
+echo 'udev_log=debug' >> /etc/udev/udev.conf
+systemctl restart systemd-udevd.service
 
 # allow for running a specific set of tests possibly multiple times
 if [ "$#" -gt 0 ] && [ "$1" != "all" ] && [ "$1" != "cluster" ] && [ "$1" != "snap" ] && [ "$1" != "standalone" ]; then
