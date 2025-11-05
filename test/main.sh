@@ -160,6 +160,7 @@ echo "==> Using storage backend ${LXD_BACKEND}"
 import_storage_backends
 
 cleanup() {
+  local last_rc="${?}"
   # Stop tracing everything
   { set +x; } 2>/dev/null
   if [ -z "${SHELL_TRACING:-}" ]; then
@@ -208,6 +209,14 @@ cleanup() {
     echo "::group::udev debug"
     journalctl -n 1000 --no-pager -u systemd-udevd.service || true
     echo "::endgroup::"
+
+    # If the cleanup function was called due to a command returning 124, it likely was due to it timing out
+    # in which case it might be useful to capture the stack of any running QEMU thread
+    if [ "${last_rc}" = "124" ]; then
+      echo "::group::qemu stack"
+      for pid in $(pgrep -w qemu-system); do tr '\0' ' ' < "/proc/${pid}/cmdline"; cat "/proc/${pid}/stack"; echo; done
+      echo "::endgroup::"
+    fi
 
     # dmesg may contain oops, IO errors, crashes, etc
     # If there's a kernel stack trace, don't generate a collapsible group
