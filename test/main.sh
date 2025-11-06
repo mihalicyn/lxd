@@ -210,6 +210,10 @@ cleanup() {
     journalctl -n 1000 --no-pager -u systemd-udevd.service || true
     echo "::endgroup::"
 
+    echo "::group::udevadm logs"
+    cat "${UDEVADM_LOGS}" || true
+    echo "::endgroup::"
+
     # If the cleanup function was called due to a command returning 124, it likely was due to it timing out
     # in which case it might be useful to capture the stack of any running QEMU thread
     if [ "${last_rc}" = "124" ]; then
@@ -241,6 +245,9 @@ cleanup() {
     echo "==> Skipping cleanup (GitHub Action runner detected)"
   else
     echo "==> Cleaning up"
+
+    kill "${UDEVADM_PID}" || true
+    rm -f "${UDEVADM_LOGS}"
 
     [ -e "${LXD_TEST_IMAGE:-}" ] && rm "${LXD_TEST_IMAGE}"
 
@@ -437,6 +444,9 @@ fi
 # XXX: udev debug
 echo 'udev_log=debug' >> /etc/udev/udev.conf
 systemctl restart systemd-udevd.service
+UDEVADM_LOGS="$(mktemp -t udevadm-logs.XXXX)"
+udevadm monitor --property --udev --kernel "${UDEVADM_LOGS}" > "${UDEVADM_LOGS}" &
+UDEVADM_PID=$!
 
 # allow for running a specific set of tests possibly multiple times
 if [ "$#" -gt 0 ] && [ "$1" != "all" ] && [ "$1" != "cluster" ] && [ "$1" != "snap" ] && [ "$1" != "standalone" ]; then
