@@ -1193,21 +1193,28 @@ func (d *zfs) createVolumeFromMigrationOptimized(vol Volume, conn io.ReadWriteCl
 			}
 		}
 
-		if d.isBlockBacked(vol) && renegerateFilesystemUUIDNeeded(vol.ConfigBlockFilesystem()) {
+		if d.isBlockBacked(vol) {
 			// Activate volume if needed.
 			activated, volPath, err := d.activateVolume(vol)
 			if err != nil {
 				return err
 			}
 
+			if ! shared.PathExists(volPath) {
+				d.logger.Error("Expected volume path to exist after activation", logger.Ctx{"dev": volPath})
+				panic("Expected volume path to exist after activation")
+			}
+
 			if activated {
 				defer func() { _, _ = d.deactivateVolume(vol) }()
 			}
 
-			d.logger.Debug("Regenerating filesystem UUID", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem()})
-			err = regenerateFilesystemUUID(vol.ConfigBlockFilesystem(), volPath)
-			if err != nil {
-				return err
+			if renegerateFilesystemUUIDNeeded(vol.ConfigBlockFilesystem()) {
+				d.logger.Debug("Regenerating filesystem UUID", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem()})
+				err = regenerateFilesystemUUID(vol.ConfigBlockFilesystem(), volPath)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
