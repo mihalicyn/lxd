@@ -8,6 +8,7 @@ test_storage_driver_zfs() {
   fi
 
   for _ in $(seq 6); do
+  do_storage_driver_zfs ext4
   do_storage_driver_zfs xfs
   done
 
