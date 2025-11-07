@@ -845,7 +845,7 @@ func (d *zfs) CreateVolumeFromCopy(vol VolumeCopy, srcVol VolumeCopy, allowIncon
 			}
 		}
 
-		if d.isBlockBacked(srcVol.Volume) && renegerateFilesystemUUIDNeeded(vol.ConfigBlockFilesystem()) {
+		if d.isBlockBacked(srcVol.Volume) {
 			activated, volPath, err := d.activateVolume(vol.Volume)
 			if err != nil {
 				return err
@@ -855,10 +855,32 @@ func (d *zfs) CreateVolumeFromCopy(vol VolumeCopy, srcVol VolumeCopy, allowIncon
 				defer func() { _, _ = d.deactivateVolume(vol.Volume) }()
 			}
 
-			d.logger.Debug("Regenerating filesystem UUID", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem()})
-			err = regenerateFilesystemUUID(vol.ConfigBlockFilesystem(), volPath)
-			if err != nil {
-				return err
+			d.logger.Warn("hey, i'm going to check a device presence1", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem(), "activated": activated})
+			iters := 0
+			shouldPanic := false
+			for iters < 100 {
+				_, err2 := os.Stat(volPath)
+				if err2 != nil {
+					d.logger.Error("Expected volume path to exist after activation", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem(), "err2": err2, "iter": iters})
+					shouldPanic = true
+				} else if shouldPanic {
+					d.logger.Error("Volume path exists after activation", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem(), "err2": err2, "iter": iters})
+					time.Sleep(100 * time.Millisecond)
+					iters++
+					continue
+				}
+				time.Sleep(1 * time.Millisecond)
+				iters++
+			}
+			if shouldPanic {
+				panic("Expected volume path to exist after activation without disappearing")
+			}
+			if renegerateFilesystemUUIDNeeded(vol.ConfigBlockFilesystem()) {
+				d.logger.Debug("Regenerating filesystem UUID", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem()})
+				err = regenerateFilesystemUUID(vol.ConfigBlockFilesystem(), volPath)
+				if err != nil {
+					return err
+				}
 			}
 		}
 
@@ -1200,15 +1222,30 @@ func (d *zfs) createVolumeFromMigrationOptimized(vol Volume, conn io.ReadWriteCl
 				return err
 			}
 
-			if ! shared.PathExists(volPath) {
-				d.logger.Error("Expected volume path to exist after activation", logger.Ctx{"dev": volPath})
-				panic("Expected volume path to exist after activation")
-			}
-
 			if activated {
 				defer func() { _, _ = d.deactivateVolume(vol) }()
 			}
 
+			d.logger.Warn("hey, i'm going to check a device presence2", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem(), "activated": activated})
+			iters := 0
+			shouldPanic := false
+			for iters < 100 {
+				_, err2 := os.Stat(volPath)
+				if err2 != nil {
+					d.logger.Error("Expected volume path to exist after activation", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem(), "err2": err2, "iter": iters})
+					shouldPanic = true
+				} else if shouldPanic {
+					d.logger.Error("Volume path exists after activation", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem(), "err2": err2, "iter": iters})
+					time.Sleep(100 * time.Millisecond)
+					iters++
+					continue
+				}
+				time.Sleep(1 * time.Millisecond)
+				iters++
+			}
+			if shouldPanic {
+				panic("Expected volume path to exist after activation without disappearing")
+			}
 			if renegerateFilesystemUUIDNeeded(vol.ConfigBlockFilesystem()) {
 				d.logger.Debug("Regenerating filesystem UUID", logger.Ctx{"dev": volPath, "fs": vol.ConfigBlockFilesystem()})
 				err = regenerateFilesystemUUID(vol.ConfigBlockFilesystem(), volPath)
@@ -3159,7 +3196,7 @@ func (d *zfs) mountVolumeSnapshot(snapVol Volume, snapshotDataset string, mountP
 				// Wait half a second to give udev a chance to kick in.
 				time.Sleep(500 * time.Millisecond)
 
-				d.logger.Debug("Activated ZFS volume", logger.Ctx{"dev": dataset})
+				d.logger.Warn("Activated ZFS volume", logger.Ctx{"dev": dataset})
 
 				// We are going to mount the temporary volume instead.
 				mountVol = tmpVol
@@ -3181,8 +3218,9 @@ func (d *zfs) mountVolumeSnapshot(snapVol Volume, snapshotDataset string, mountP
 					if idx < 0 {
 						mountOptions += ",nouuid"
 					}
+					d.logger.Warn("Adding nouuid mount option for XFS", logger.Ctx{"dev": volPath, "fs": tmpVolFsType})
 				} else {
-					d.logger.Debug("Regenerating filesystem UUID", logger.Ctx{"dev": volPath, "fs": tmpVolFsType})
+					d.logger.Warn("Regenerating filesystem UUID", logger.Ctx{"dev": volPath, "fs": tmpVolFsType})
 					err = regenerateFilesystemUUID(mountVol.ConfigBlockFilesystem(), volPath)
 					if err != nil {
 						return nil, err
