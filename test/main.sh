@@ -207,7 +207,7 @@ cleanup() {
     fi
 
     echo "::group::udev debug"
-    journalctl -n 1000 --no-pager -u systemd-udevd.service || true
+    journalctl -n 10000 --no-pager -u systemd-udevd.service || true
     echo "::endgroup::"
 
     echo "::group::udevadm logs"
