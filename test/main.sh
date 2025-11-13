@@ -214,6 +214,13 @@ cleanup() {
     cat "${UDEVADM_LOGS}" || true
     echo "::endgroup::"
 
+    echo "::group::bpftrace logs"
+    sleep 5
+    kill "${BPFTRACE_PID}" || true
+    sleep 1
+    cat "${BPFTRACE_LOGS}" || true
+    echo "::endgroup::"
+
     # If the cleanup function was called due to a command returning 124, it likely was due to it timing out
     # in which case it might be useful to capture the stack of any running QEMU thread
     if [ "${last_rc}" = "124" ]; then
@@ -248,6 +255,9 @@ cleanup() {
 
     kill "${UDEVADM_PID}" || true
     rm -f "${UDEVADM_LOGS}"
+
+    kill "${BPFTRACE_PID}" || true
+    rm -f "${BPFTRACE_LOGS}"
 
     [ -e "${LXD_TEST_IMAGE:-}" ] && rm "${LXD_TEST_IMAGE}"
 
@@ -447,6 +457,11 @@ systemctl restart systemd-udevd.service
 UDEVADM_LOGS="$(mktemp -t udevadm-logs.XXXX)"
 udevadm monitor --property --udev --kernel "${UDEVADM_LOGS}" > "${UDEVADM_LOGS}" &
 UDEVADM_PID=$!
+
+BPFTRACE_LOGS="$(mktemp -t bpftrace-logs.XXXX)"
+export BPFTRACE_MAX_STRLEN=200
+bpftrace -o "${BPFTRACE_LOGS}" -e 'kprobe:netlink_broadcast { $skb = (struct sk_buff *)arg1; printf("%s (PID %d %s) [%r] %s\n", strftime("%H:%M:%S.%f", nsecs), pid, comm, buf($skb->data, $skb->len), kstack); } kprobe:zvol_set_volmode { printf("%s (PID %d %s) userspace asks zvol_set_volmode(%s, ., %d)\n", strftime("%H:%M:%S.%f", nsecs), pid, comm, str(arg0), arg2); } kprobe:zvol_set_volmode_impl { printf("%s (PID %d %s) zvol_set_volmode_impl %s %s\n", strftime("%H:%M:%S.%f", nsecs), pid, comm, str(arg0), kstack); } kprobe:zvol_os_create_minor { printf("%s (PID %d %s) zvol_os_create_minor %s %s\n", strftime("%H:%M:%S.%f", nsecs), pid, comm, str(arg0), kstack); }' > "${BPFTRACE_LOGS}" &
+BPFTRACE_PID=$!
 
 # allow for running a specific set of tests possibly multiple times
 if [ "$#" -gt 0 ] && [ "$1" != "all" ] && [ "$1" != "cluster" ] && [ "$1" != "snap" ] && [ "$1" != "standalone" ]; then

@@ -61,7 +61,8 @@ runs:
           thin-provisioning-tools \
           uuid-runtime \
           xfsprogs \
-          xz-utils
+          xz-utils \
+          bpftrace
 
         if ! command -v yq >/dev/null; then
           # Releases before 24.04 don't have a yq deb so use the snap instead.
