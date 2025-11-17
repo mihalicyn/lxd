@@ -33,6 +33,7 @@ import (
 	"github.com/canonical/lxd/shared/api"
 	"github.com/canonical/lxd/shared/cancel"
 	"github.com/canonical/lxd/shared/ioprogress"
+	"github.com/canonical/lxd/shared/logger"
 	"github.com/canonical/lxd/shared/revert"
 	"github.com/canonical/lxd/shared/units"
 )
@@ -1066,6 +1067,9 @@ func RunCommandSplit(ctx context.Context, env []string, filesInherit []*os.File,
 // start or returns a non-zero exit code then an error is returned containing the output of stderr.
 func RunCommandContext(ctx context.Context, name string, arg ...string) (string, error) {
 	stdout, _, err := RunCommandSplit(ctx, nil, nil, name, arg...)
+	if name == "zfs" {
+		logger.Errorf("zfs %v stdout=[%s] %w", arg, stdout, err)
+	}
 	return stdout, err
 }
 
